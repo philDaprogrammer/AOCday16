@@ -9,6 +9,7 @@ import java.util.Stack;
 
 public class Solution {
     private LinkedList<Integer> bits;
+    private Integer versions = 0;
 
     public Solution(String filename) { parse(filename); }
 
@@ -36,83 +37,146 @@ public class Solution {
         }
     }
 
-    private int bin2dec(ArrayList<Integer> bitSequence) {
-        int dec = 0;
+    private Long bin2dec(ArrayList<Integer> bitSequence) {
+        Long dec = (long)0;
 
         for (int i=0; i < bitSequence.size(); ++i) {
-            dec += bitSequence.get(i) * Math.pow(2, bitSequence.size() - 1 - i);
+            dec += bitSequence.get(i) * (long)Math.pow(2, bitSequence.size() -  1 - i);
         }
 
         return dec;
     }
 
-    private int parseLiteral() {
-        int isParsing             = this.bits.poll();
+    private Long parseLiteral(LinkedList<Integer> bits) {
+        int isParsing             =  bits.poll();
         ArrayList<Integer> nibble = new ArrayList<>();
 
         while (isParsing == 1) {
-            for (int i=0; i < 4; ++i) { nibble.add(this.bits.poll()); }
-            isParsing = this.bits.poll();
+            for (int i=0; i < 4; ++i) { nibble.add(bits.poll()); }
+            isParsing = bits.poll();
         }
 
-        for (int i=0; i < 4; ++i) { nibble.add(this.bits.poll()); }
+        for (int i=0; i < 4; ++i) { nibble.add(bits.poll()); }
 
         return bin2dec(nibble);
     }
 
-    public void solveP1() {
-        int versionSum  = 0;
-        Integer version = null;
-        Integer ID      = null;
-        Integer lengthTypeID;
+    private boolean allZeros(LinkedList<Integer> bits) {
+        LinkedList<Integer> copy = (LinkedList<Integer>) bits.clone();
 
-        while (!this.bits.isEmpty()) {
-
-            if (version == null) { // version is null, start of a new packet
-                ArrayList<Integer> versionBits = new ArrayList<>();
-                ArrayList<Integer> idBits      = new ArrayList<>();
-
-                for (int i=0; i < 3; ++i) { versionBits.add(this.bits.poll()); }
-                for (int i=0; i < 3; ++i) { idBits.add(this.bits.poll()); }
-
-                version = bin2dec(versionBits);
-                ID      = bin2dec(idBits);
-                versionSum += version;
-            }
-
-            if (ID == 4) { // parse a literal
-                parseLiteral();
-                version = null;
-            } else { // parsing an operator
-                lengthTypeID = this.bits.poll();
-
-                if (lengthTypeID == 0) {
-                    for (int i=0; i < 15; ++i) { this.bits.poll(); }
-                    version = null;
-                } else if (lengthTypeID  == 1) {
-                    for (int i=0; i < 11; ++i) { this.bits.poll(); }
-                    version = null;
-                }
-            }
-
-            if (this.bits.size() <= 6) {
-                System.out.println(this.bits);
-                break;
-            }
+        while (!copy.isEmpty()) {
+            if (copy.poll() != 0) { return false; }
         }
 
-        System.out.println("The version sum is: " + versionSum);
+        return true;
     }
 
-    public int solve(int version, int ID) {
-        if (ID == 4) {
-            return parseLiteral();
-        } else {
-            int lengthTypeID = this.bits.poll();
+    private Long computeSum(ArrayList<Long> literals) {
+        Long sum = (long)0;
 
+        for (Long literal : literals) { sum += literal; }
 
+        return sum;
+    }
 
-            return 0;
+    private Long computeProduct(ArrayList<Long> literals) {
+        Long prod = (long)1;
+
+        for (Long literal : literals) { prod *= literal; }
+
+        return prod;
+    }
+
+    private Long computeMin(ArrayList<Long> literals) {
+        Long min = null;
+
+        for (Long literal : literals) {
+            if ((min == null) || (literal < min)) { min = literal; }
         }
+
+        return min;
+    }
+
+    private Long computeMax(ArrayList<Long> literals) {
+        Long max = null;
+
+        for (Long literal : literals) {
+            if ((max == null) || (literal > max)) { max = literal; }
+        }
+
+        return max;
+    }
+
+    private int greaterThan(ArrayList<Long> literals) {
+        if (literals.get(0) > literals.get(1)) return 1;
+        else return 0;
+    }
+
+    private int lessThan(ArrayList<Long> literals) {
+        if (literals.get(0) < literals.get(1)) return 1;
+        else return 0;
+    }
+
+    private int equal(ArrayList<Long> literals) {
+        if (literals.get(0).equals(literals.get(1))) return 1;
+        else return 0;
+    }
+
+    public Long solveRec(LinkedList<Integer> bits) {
+        if (allZeros(bits)) {
+            return (long)0;
+        } else {
+            ArrayList<Integer> versionBits = new ArrayList<>();
+            ArrayList<Integer> idBits      = new ArrayList<>();
+
+            // obtain version and ID numbers
+            for (int i=0; i < 3; ++i) { versionBits.add(bits.poll()); }
+            for (int i=0; i < 3; ++i) { idBits.add(bits.poll()); }
+            int version = (int)(long)bin2dec(versionBits);
+            int ID      = (int)(long)bin2dec(idBits);
+            this.versions += version;
+
+            if (ID == 4) { // parse a literal
+                return parseLiteral(bits);
+            } else {
+                int lengthTypeId = bits.poll();
+                Long size;
+
+                ArrayList<Integer>  packetSize    = new ArrayList<>();
+                LinkedList<Integer> subPacketBits = new LinkedList<>();
+                ArrayList<Long> subPackets        = new ArrayList<>();
+
+                if (lengthTypeId == 0) { // get the sub packet size / number of sub packets
+                    for (int i=0; i < 15; ++i) { packetSize.add(bits.poll());}
+                } else {
+                    for (int i=0; i < 11; ++i) { packetSize.add(bits.poll()); }
+                }
+
+                size = bin2dec(packetSize);
+
+                if (lengthTypeId == 0) { // obtain sub packets
+                    for (int i=0; i < size; ++i) { subPacketBits.add(bits.poll()); }
+                    while (!subPacketBits.isEmpty()) { subPackets.add(solveRec(subPacketBits)); }
+                } else {
+                    while (subPackets.size() < size) { subPackets.add(solveRec(bits)); }
+                }
+
+                switch (ID) {
+                    case 0: return computeSum(subPackets);
+                    case 1: return computeProduct(subPackets);
+                    case 2: return computeMin(subPackets);
+                    case 3: return computeMax(subPackets);
+                    case 5: return (long)greaterThan(subPackets);
+                    case 6: return (long)lessThan(subPackets);
+                    case 7: return (long)equal(subPackets);
+                    default: return (long)0;
+                }
+            }
+        }
+    }
+
+    public void solve() {
+        System.out.println(solveRec(this.bits));
+        System.out.println(this.versions);
     }
 }
