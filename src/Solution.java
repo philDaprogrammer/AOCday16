@@ -61,16 +61,6 @@ public class Solution {
         return bin2dec(nibble);
     }
 
-    private boolean allZeros(LinkedList<Integer> bits) {
-        LinkedList<Integer> copy = (LinkedList<Integer>) bits.clone();
-
-        while (!copy.isEmpty()) {
-            if (copy.poll() != 0) { return false; }
-        }
-
-        return true;
-    }
-
     private Long computeSum(ArrayList<Long> literals) {
         Long sum = (long)0;
 
@@ -123,60 +113,55 @@ public class Solution {
     }
 
     public Long solveRec(LinkedList<Integer> bits) {
-        if (allZeros(bits)) {
-            return (long)0;
+        ArrayList<Integer> versionBits = new ArrayList<>();
+        ArrayList<Integer> idBits      = new ArrayList<>();
+
+        // obtain version and ID numbers
+        for (int i=0; i < 3; ++i) { versionBits.add(bits.poll()); }
+        for (int i=0; i < 3; ++i) { idBits.add(bits.poll()); }
+        this.versions = (int)(long)bin2dec(versionBits);
+        int ID        = (int)(long)bin2dec(idBits);
+
+        if (ID == 4) { // parse a literal
+            return parseLiteral(bits);
         } else {
-            ArrayList<Integer> versionBits = new ArrayList<>();
-            ArrayList<Integer> idBits      = new ArrayList<>();
+            int lengthTypeId = bits.poll();
+            Long size;
 
-            // obtain version and ID numbers
-            for (int i=0; i < 3; ++i) { versionBits.add(bits.poll()); }
-            for (int i=0; i < 3; ++i) { idBits.add(bits.poll()); }
-            int version = (int)(long)bin2dec(versionBits);
-            int ID      = (int)(long)bin2dec(idBits);
-            this.versions += version;
+            ArrayList<Integer>  packetSize    = new ArrayList<>();
+            LinkedList<Integer> subPacketBits = new LinkedList<>();
+            ArrayList<Long> subPackets        = new ArrayList<>();
 
-            if (ID == 4) { // parse a literal
-                return parseLiteral(bits);
+            if (lengthTypeId == 0) { // get the sub packet size / number of sub packets
+                for (int i=0; i < 15; ++i) { packetSize.add(bits.poll());}
             } else {
-                int lengthTypeId = bits.poll();
-                Long size;
+                for (int i=0; i < 11; ++i) { packetSize.add(bits.poll()); }
+            }
 
-                ArrayList<Integer>  packetSize    = new ArrayList<>();
-                LinkedList<Integer> subPacketBits = new LinkedList<>();
-                ArrayList<Long> subPackets        = new ArrayList<>();
+            size = bin2dec(packetSize);
 
-                if (lengthTypeId == 0) { // get the sub packet size / number of sub packets
-                    for (int i=0; i < 15; ++i) { packetSize.add(bits.poll());}
-                } else {
-                    for (int i=0; i < 11; ++i) { packetSize.add(bits.poll()); }
-                }
+            if (lengthTypeId == 0) { // obtain sub packets
+                for (int i=0; i < size; ++i) { subPacketBits.add(bits.poll()); }
+                while (!subPacketBits.isEmpty()) { subPackets.add(solveRec(subPacketBits)); }
+            } else {
+                while (subPackets.size() < size) { subPackets.add(solveRec(bits)); }
+            }
 
-                size = bin2dec(packetSize);
-
-                if (lengthTypeId == 0) { // obtain sub packets
-                    for (int i=0; i < size; ++i) { subPacketBits.add(bits.poll()); }
-                    while (!subPacketBits.isEmpty()) { subPackets.add(solveRec(subPacketBits)); }
-                } else {
-                    while (subPackets.size() < size) { subPackets.add(solveRec(bits)); }
-                }
-
-                switch (ID) {
-                    case 0: return computeSum(subPackets);
-                    case 1: return computeProduct(subPackets);
-                    case 2: return computeMin(subPackets);
-                    case 3: return computeMax(subPackets);
-                    case 5: return (long)greaterThan(subPackets);
-                    case 6: return (long)lessThan(subPackets);
-                    case 7: return (long)equal(subPackets);
-                    default: return (long)0;
-                }
+            switch (ID) {
+                case 0: return  computeSum(subPackets);
+                case 1: return  computeProduct(subPackets);
+                case 2: return  computeMin(subPackets);
+                case 3: return  computeMax(subPackets);
+                case 5: return  (long)greaterThan(subPackets);
+                case 6: return  (long)lessThan(subPackets);
+                case 7: return  (long)equal(subPackets);
+                default: return (long)0; // shouldn't execute, but need to return something
             }
         }
     }
 
     public void solve() {
-        System.out.println(solveRec(this.bits));
-        System.out.println(this.versions);
+        System.out.println("Expression value: " + solveRec(this.bits));
+        System.out.println("Version total: " + this.versions);
     }
 }
